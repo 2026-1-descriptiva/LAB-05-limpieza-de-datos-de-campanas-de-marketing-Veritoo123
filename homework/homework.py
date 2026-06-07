@@ -4,8 +4,181 @@ Escriba el codigo que ejecute la accion solicitada.
 
 # pylint: disable=import-outside-toplevel
 
+import zipfile
+import os
+import pandas as pd
 
 def clean_campaign_data():
+    input_path = "files/input/"
+    output_path = "files/output/"
+
+    dataframe = read_zip_and_concat(input_path)
+
+    # client.csv
+    client_df = dataframe[
+        [
+            "client_id",
+            "age",
+            "job",
+            "marital",
+            "education",
+            "credit_default",
+            "mortgage",
+        ]
+    ].copy()
+
+    client_df["job"] = (
+        client_df["job"]
+        .str.replace(".", "", regex=False)
+        .str.replace("-", "_", regex=False)
+    )
+
+    client_df["education"] = (
+        client_df["education"]
+        .str.replace(".", "_", regex=False)
+        .replace("unknown", pd.NA)
+    )
+
+    client_df["credit_default"] = (
+        client_df["credit_default"]
+        .eq("yes")
+        .astype(int)
+    )
+
+    client_df["mortgage"] = (
+        client_df["mortgage"]
+        .eq("yes")
+        .astype(int)
+    )
+
+    save_csv_in_directory(client_df, output_path, "client.csv")
+
+    # campaign.csv
+    campaign_df = dataframe[
+        [
+            "client_id",
+            "number_contacts",
+            "contact_duration",
+            "previous_campaign_contacts",
+            "previous_outcome",
+            "campaign_outcome",
+            "day",
+            "month",
+        ]
+    ].copy()
+
+    campaign_df["previous_outcome"] = (
+        campaign_df["previous_outcome"]
+        .eq("success")
+        .astype(int)
+    )
+
+    campaign_df["campaign_outcome"] = (
+        campaign_df["campaign_outcome"]
+        .eq("yes")
+        .astype(int)
+    )
+
+    campaign_df["last_contact_date"] = pd.to_datetime(
+        campaign_df["day"].astype(str)
+        + "-"
+        + campaign_df["month"]
+        + "-2022",
+        format="%d-%b-%Y",
+    ).dt.strftime("%Y-%m-%d")
+
+    campaign_df = campaign_df.drop(columns=["day", "month"])
+
+    save_csv_in_directory(
+        campaign_df,
+        output_path,
+        "campaign.csv",
+    )
+
+    # economics.csv
+    economics_df = dataframe[
+        [
+            "client_id",
+            "cons_price_idx",
+            "euribor_three_months",
+        ]
+    ].copy()
+
+    save_csv_in_directory(
+        economics_df,
+        output_path,
+        "economics.csv",
+    )
+
+    print("La operación fue un éxito.")
+
+
+def read_zip_and_concat(input_path):
+    if not os.path.isdir(input_path):
+        raise ValueError(
+            f"El directorio {input_path} no existe."
+        )
+
+    all_data = []
+
+    for zip_name in os.listdir(input_path):
+
+        if not zip_name.endswith(".zip"):
+            continue
+
+        zip_path = os.path.join(
+            input_path,
+            zip_name,
+        )
+
+        with zipfile.ZipFile(zip_path, "r") as zip_file:
+
+            csv_files = [
+                name
+                for name in zip_file.namelist()
+                if name.endswith(".csv")
+            ]
+
+            if not csv_files:
+                continue
+
+            for csv_file in csv_files:
+
+                with zip_file.open(csv_file) as file:
+
+                    df = pd.read_csv(file)
+
+                    all_data.append(df)
+
+    return pd.concat(
+        all_data,
+        ignore_index=True,
+    )
+
+
+def save_csv_in_directory(
+    dataframe,
+    output_path,
+    filename,
+):
+    os.makedirs(
+        output_path,
+        exist_ok=True,
+    )
+
+    output_file = os.path.join(
+        output_path,
+        filename,
+    )
+
+    dataframe.to_csv(
+        output_file,
+        index=False,
+    )
+
+
+if __name__ == "__main__":
+    clean_campaign_data()
     """
     En esta tarea se le pide que limpie los datos de una campaña de
     marketing realizada por un banco, la cual tiene como fin la
@@ -50,8 +223,3 @@ def clean_campaign_data():
 
     """
 
-    return
-
-
-if __name__ == "__main__":
-    clean_campaign_data()
